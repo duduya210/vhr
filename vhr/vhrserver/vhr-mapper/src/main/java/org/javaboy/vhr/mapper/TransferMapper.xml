@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.javaboy.vhr.mapper.TransferMapper">
+    <select id="lockEmployee" resultType="org.javaboy.vhr.model.TransferEmployee">
+        SELECT id, name, workID AS workId, departmentId, posId AS positionId, workState
+        FROM employee WHERE id = #{id} FOR UPDATE
+    </select>
+    <select id="searchEmployees" resultType="org.javaboy.vhr.model.TransferEmployee">
+        SELECT e.id, e.name, e.workID AS workId, e.departmentId, e.posId AS positionId,
+               e.workState, d.name AS departmentName, p.name AS positionName
+        FROM employee e LEFT JOIN department d ON d.id = e.departmentId
+        LEFT JOIN position p ON p.id = e.posId
+        WHERE e.workState = '在职'
+        <if test="keyword != null and keyword != ''">
+            AND (e.name LIKE CONCAT('%', #{keyword}, '%') OR e.workID LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY e.workID, e.id LIMIT 30
+    </select>
+    <select id="departments" resultType="org.javaboy.vhr.model.Department">
+        SELECT id, name, enabled, parentId FROM department ORDER BY id
+    </select>
+    <select id="positions" resultType="org.javaboy.vhr.model.Position">
+        SELECT id, name, enabled FROM position ORDER BY id
+    </select>
+    <select id="department" resultType="org.javaboy.vhr.model.Department">
+        SELECT id, name, enabled FROM department WHERE id = #{id}
+    </select>
+    <select id="position" resultType="org.javaboy.vhr.model.Position">
+        SELECT id, name, enabled FROM position WHERE id = #{id}
+    </select>
+    <select id="findByRequestId" resultType="org.javaboy.vhr.model.TransferRecord">
+        SELECT * FROM employeeremove WHERE requestId = #{requestId} FOR UPDATE
+    </select>
+    <update id="updateAssignment">
+        UPDATE employee SET departmentId = #{afterDepId}, posId = #{afterJobId} WHERE id = #{eid}
+    </update>
+    <insert id="insertTransfer" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO employeeremove
+        (eid, beforeDepId, beforeJobId, afterDepId, afterJobId, employeeName, workId,
+         beforeDepName, beforeJobName, afterDepName, afterJobName, removeDate, reason, remark,
+         operatorId, operatorName, createdAt, requestId)
+        VALUES (#{eid}, #{beforeDepId}, #{beforeJobId}, #{afterDepId}, #{afterJobId}, #{employeeName}, #{workId},
+         #{beforeDepName}, #{beforeJobName}, #{afterDepName}, #{afterJobName}, #{removeDate}, #{reason}, #{remark},
+         #{operatorId}, #{operatorName}, #{createdAt}, #{requestId})
+    </insert>
+    <insert id="insertLog">
+        INSERT INTO oplog (addDate, operate, hrid, transferId, operatorName, createdAt)
+        VALUES (#{removeDate}, CONCAT('员工调动 #', #{id}, '：', #{employeeName}, '（', COALESCE(#{workId}, ''), '）'),
+                #{operatorId}, #{id}, #{operatorName}, #{createdAt})
+    </insert>
+    <sql id="transferWhere">
+        <where>
+            <if test="q.keyword != null and q.keyword != ''">
+                AND (COALESCE(t.employeeName, e.name) LIKE CONCAT('%', #{q.keyword}, '%')
+                     OR COALESCE(t.workId, e.workID) LIKE CONCAT('%', #{q.keyword}, '%'))
+            </if>
+            <if test="q.departmentId != null">AND (t.beforeDepId = #{q.departmentId} OR t.afterDepId = #{q.departmentId})</if>
+            <if test="q.startTime != null">AND COALESCE(t.createdAt, t.removeDate) &gt;= #{q.startTime}</if>
+            <if test="q.endTime != null">AND COALESCE(t.createdAt, t.removeDate) &lt; #{q.endTime}</if>
+        </where>
+    </sql>
+    <select id="transfers" resultType="org.javaboy.vhr.model.TransferRecord">
+        SELECT t.id, t.eid, t.beforeDepId, t.beforeJobId, t.afterDepId, t.afterJobId,
+            COALESCE(t.employeeName, e.name) AS employeeName, COALESCE(t.workId, e.workID) AS workId,
+            t.beforeDepName, t.beforeJobName, t.afterDepName, t.afterJobName,
+            t.removeDate, t.createdAt, t.reason, t.remark, t.operatorId, t.operatorName
+        FROM employeeremove t LEFT JOIN employee e ON e.id = t.eid
+        <include refid="transferWhere"/>
+        ORDER BY COALESCE(t.createdAt, t.removeDate) DESC, t.id DESC LIMIT #{q.size} OFFSET #{q.offset}
+    </select>
+    <select id="transferCount" resultType="long">
+        SELECT COUNT(*) FROM employeeremove t LEFT JOIN employee e ON e.id = t.eid
+        <include refid="transferWhere"/>
+    </select>
+    <sql id="logFrom">FROM oplog l LEFT JOIN hr h ON h.id = l.hrid LEFT JOIN employeeremove t ON t.id = l.transferId</sql>
+    <sql id="logWhere">
+        <where>
+            <if test="q.keyword != null and q.keyword != ''">
+                AND (l.operate LIKE CONCAT('%', #{q.keyword}, '%') OR t.employeeName LIKE CONCAT('%', #{q.keyword}, '%')
+                     OR t.workId LIKE CONCAT('%', #{q.keyword}, '%'))
+            </if>
+            <if test="q.operator != null and q.operator != ''">AND COALESCE(l.operatorName, h.name) LIKE CONCAT('%', #{q.operator}, '%')</if>
+            <if test="q.startTime != null">AND COALESCE(l.createdAt, l.addDate) &gt;= #{q.startTime}</if>
+            <if test="q.endTime != null">AND COALESCE(l.createdAt, l.addDate) &lt; #{q.endTime}</if>
+        </where>
+    </sql>
+    <select id="logs" resultType="org.javaboy.vhr.model.TransferOperationLog">
+        SELECT l.id, l.transferId, l.hrid AS operatorId, COALESCE(l.operatorName, h.name) AS operatorName,
+               COALESCE(l.createdAt, l.addDate) AS createdAt, l.operate, t.employeeName, t.workId,
+               t.beforeDepName, t.beforeJobName, t.afterDepName, t.afterJobName, t.reason, t.remark
+        <include refid="logFrom"/><include refid="logWhere"/>
+        ORDER BY COALESCE(l.createdAt, l.addDate) DESC, l.id DESC LIMIT #{q.size} OFFSET #{q.offset}
+    </select>
+    <select id="logCount" resultType="long"><![CDATA[SELECT COUNT(*) ]]><include refid="logFrom"/><include refid="logWhere"/></select>
+</mapper>

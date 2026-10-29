@@ -156,7 +156,7 @@ test('home shortcuts exclude hidden menu groups and hidden children', () => {
 test('release status removes empty groups, unknown and disabled pages without granting permissions', () => {
     const menus = [
         { name: '员工', children: [{ path: '/emp/basic' }, { path: '/emp/adv' }] },
-        { name: '人事', children: [{ path: '/per/mv' }] },
+        { name: '人事', children: [{ path: '/per/train' }] },
         { name: '系统', children: [{ path: '/sys/basic', enabled: false }, { path: '/unknown' }] },
     ];
     const snapshot = JSON.stringify(menus);
@@ -168,7 +168,9 @@ test('release status removes empty groups, unknown and disabled pages without gr
     );
     assert.equal(JSON.stringify(menus), snapshot);
     assert.deepEqual(getReadyMenuGroups([]), []);
-    assert.equal(isFeatureReady('/per/mv'), false);
+    assert.equal(isFeatureReady('/per/train'), false);
+    assert.equal(isFeatureReady('/per/mv'), true);
+    assert.equal(isFeatureReady('/sys/log'), true);
     assert.equal(isFeatureReady('/unknown'), false);
 });
 
