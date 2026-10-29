@@ -1,4 +1,5 @@
 import {getRequest} from "./api";
+import {isFeatureReady} from './featureAvailability.js';
 
 //Vite 用 import.meta.glob 实现按需加载
 const modules = import.meta.glob('../views/**/*.vue')
@@ -62,7 +63,9 @@ export const formatRoutes = (routes) => {
             iconCls: iconCls,
             meta: Object.assign({}, meta, {menuName: name}),
             children: children,
-            component: modules[resolveView(component)]
+            component: component === 'Home' || isFeatureReady(path)
+                ? modules[resolveView(component)]
+                : () => import('../views/FeatureUnavailable.vue')
         }
         fmRoutes.push(fmRouter);
     })

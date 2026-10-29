@@ -31,6 +31,7 @@
                 </form>
                 <div class="employee-tools">
                     <el-upload
+                        accept=".xls"
                         :show-file-list="false"
                         :before-upload="beforeUpload"
                         :on-success="onSuccess"
@@ -45,6 +46,16 @@
                     >
                 </div>
             </div>
+            <p class="import-help">导入支持 .xls 文件（不超过 1 MB），表头和列顺序需与导出文件一致。</p>
+            <el-alert
+                v-if="importResult"
+                class="import-feedback"
+                :title="importResult.title"
+                :description="importResult.description"
+                :type="importResult.type"
+                show-icon
+                @close="importResult = null"
+            />
             <el-collapse-transition
                 ><el-form
                     v-show="showAdvanceSearchView"
@@ -472,6 +483,7 @@ export default {
             importDataBtnText: '导入数据',
             importDataBtnIcon: 'Upload',
             importDataDisabled: false,
+            importResult: null,
             showAdvanceSearchView: false,
             allDeps: [],
             emps: [],
@@ -624,21 +636,62 @@ export default {
             this.searchValue.departmentId = data.id;
             this.popVisible2 = !this.popVisible2;
         },
-        onError(err, file, fileList) {
+        finishImport() {
             this.importDataBtnText = '导入数据';
             this.importDataBtnIcon = 'Upload';
             this.importDataDisabled = false;
         },
-        onSuccess(response, file, fileList) {
-            this.importDataBtnText = '导入数据';
-            this.importDataBtnIcon = 'Upload';
-            this.importDataDisabled = false;
-            this.initEmps();
+        onError(err) {
+            this.finishImport();
+            let description;
+            if (err?.status === 401) description = '登录已失效，请重新登录后导入。';
+            else if (err?.status === 403) description = '没有员工导入权限，请联系管理员。';
+            else if (err?.status === 413) description = '文件超过服务器允许的大小，请拆分文件后导入。';
+            else {
+                try {
+                    const body = JSON.parse(err?.message || '');
+                    if (typeof body.msg === 'string') description = body.msg;
+                } catch { /* Non-JSON server responses must not be rendered as HTML. */ }
+            }
+            this.importResult = {
+                type: 'error',
+                title: '导入未完成或结果未确认',
+                description: description || '请检查网络和文件内容，刷新列表确认是否已导入后再重试，避免重复导入。',
+            };
         },
-        beforeUpload() {
+        onSuccess(response, file) {
+            this.finishImport();
+            if (response?.status === 200) {
+                this.importResult = {
+                    type: 'success',
+                    title: '员工导入成功',
+                    description: `${file?.name || '所选文件'}：${response.msg || '导入完成'}。列表按当前筛选条件刷新。`,
+                };
+                return this.initEmps();
+            }
+            this.importResult = {
+                type: 'error',
+                title: '导入未成功',
+                description: typeof response?.msg === 'string'
+                    ? response.msg
+                    : '服务器未返回有效的成功结果，请刷新列表核实后再重试。',
+            };
+        },
+        beforeUpload(file) {
+            if (this.importDataDisabled) return false;
+            let error;
+            if (!/\.xls$/i.test(file.name)) error = '当前仅支持 Excel 97–2003 工作簿（.xls），请另存为该格式后导入。';
+            else if (file.size === 0) error = '文件为空，请选择包含员工数据的文件。';
+            else if (file.size > 1024 * 1024) error = '文件不能超过 1 MB，请拆分后导入。';
+            if (error) {
+                this.importResult = {type: 'error', title: '文件校验未通过', description: error};
+                return false;
+            }
+            this.importResult = null;
             this.importDataBtnText = '正在导入';
             this.importDataBtnIcon = 'Loading';
             this.importDataDisabled = true;
+            return true;
         },
         exportData() {
             window.open('/employee/basic/export', '_parent');
@@ -854,6 +907,8 @@ export default {
 </script>
 
 <style scoped>
+.import-help { margin: 0 24px 16px; color: #8390a6; font-size: 12px; }
+.import-feedback { margin: 0 24px 16px; width: auto; }
 .employee-page {
     min-width: 0;
 }

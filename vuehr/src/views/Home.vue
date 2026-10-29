@@ -129,7 +129,7 @@
                         </div>
                         <el-empty
                             v-if="!shortcuts.length"
-                            description="暂无可用功能，请联系管理员分配权限"
+                            description="暂无已上线且已授权的功能，请联系管理员"
                             :image-size="80"
                         />
                     </section>
@@ -141,6 +141,8 @@
 </template>
 
 <script>
+import { getReadyMenuGroups } from '../utils/featureAvailability.js';
+
 export default {
     name: 'Home',
     data() {
@@ -157,7 +159,7 @@ export default {
     },
     computed: {
         visibleRoutes() {
-            return this.$store.state.routes.filter((item) => !item.hidden);
+            return getReadyMenuGroups(this.$store.state.routes);
         },
         user() {
             return this.$store.state.currentHr || {};
