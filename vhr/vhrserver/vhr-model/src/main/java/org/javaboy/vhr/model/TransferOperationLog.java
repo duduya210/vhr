@@ -4,6 +4,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class TransferOperationLog {
+    private String details;
+    public String getDetails() { return details; }
+    public void setDetails(String details) { this.details = details; }
     private Integer id;
     private Integer transferId;
     private Integer operatorId;

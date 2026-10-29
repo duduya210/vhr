@@ -4,7 +4,7 @@ export const featureAvailability = Object.freeze({
     '/emp/basic': true,
     '/emp/adv': false,
     '/per/emp': false,
-    '/per/ec': false,
+    '/per/ec': true,
     '/per/train': false,
     '/per/salary': false,
     '/per/mv': true,

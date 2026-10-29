@@ -3,7 +3,7 @@
         <div class="page-heading">
             <div>
                 <h1>操作日志</h1>
-                <p>追溯已完成的员工调动。日志为只读记录，不支持修改或删除。</p>
+                <p>追溯员工调动、奖惩登记与撤销、奖惩规则变更。日志为只读记录。</p>
             </div>
         </div>
         <section class="surface-card">
@@ -67,6 +67,7 @@
                 <el-descriptions-item label="操作人">{{ detail.operatorName || '历史未记录' }}</el-descriptions-item>
                 <el-descriptions-item label="时间">{{ displayTime(detail.createdAt) }}</el-descriptions-item>
                 <el-descriptions-item label="操作内容">{{ detail.operate }}</el-descriptions-item>
+                <el-descriptions-item v-if="detail.details" label="操作详情">{{ detail.details }}</el-descriptions-item>
                 <template v-if="detail.transferId">
                     <el-descriptions-item label="调动记录">#{{ detail.transferId }}</el-descriptions-item>
                     <el-descriptions-item label="员工"

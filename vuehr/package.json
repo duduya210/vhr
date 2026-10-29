@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:web": "npm run build && node scripts/sync-web.mjs",
-    "test:ui": "node --test tests/ui-behavior.test.mjs tests/transfer-behavior.test.mjs",
+    "test:ui": "node --test tests/ui-behavior.test.mjs tests/transfer-behavior.test.mjs tests/ec-behavior.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

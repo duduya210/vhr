@@ -5,8 +5,10 @@ import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.javaboy.vhr.mapper.TransferMapper;
+import org.javaboy.vhr.mapper.EcMapper;
 import org.javaboy.vhr.model.*;
 import org.javaboy.vhr.service.EmployeeTransferService;
+import org.javaboy.vhr.service.EmployeeEcService;
 import org.junit.jupiter.api.*;
 import org.springframework.context.annotation.*;
 import org.springframework.core.io.ClassPathResource;
@@ -41,11 +43,14 @@ class EmployeeTransferTests {
         @Bean SqlSessionFactoryBean sqlSessionFactory(DataSource source) {
             SqlSessionFactoryBean factory = new SqlSessionFactoryBean();
             factory.setDataSource(source);
-            factory.setMapperLocations(new ClassPathResource("org/javaboy/vhr/mapper/TransferMapper.xml"));
+            factory.setMapperLocations(new ClassPathResource("org/javaboy/vhr/mapper/TransferMapper.xml"),
+                    new ClassPathResource("org/javaboy/vhr/mapper/EcMapper.xml"));
             return factory;
         }
         @Bean TransferMapper transferMapper(SqlSessionFactory factory) { return new SqlSessionTemplate(factory).getMapper(TransferMapper.class); }
         @Bean EmployeeTransferService service(TransferMapper mapper) { return new EmployeeTransferService(mapper); }
+        @Bean EcMapper ecMapper(SqlSessionFactory factory) { return new SqlSessionTemplate(factory).getMapper(EcMapper.class); }
+        @Bean EmployeeEcService ecService(EcMapper mapper, TransferMapper employees) { return new EmployeeEcService(mapper,employees); }
     }
 
     @BeforeEach void setup() throws Exception {
@@ -58,9 +63,11 @@ class EmployeeTransferTests {
         jdbc.execute("CREATE TABLE employee(id INT PRIMARY KEY, name VARCHAR(64), workID VARCHAR(32), departmentId INT, posId INT, workState VARCHAR(16))");
         jdbc.execute("CREATE TABLE employeeremove(id INT AUTO_INCREMENT PRIMARY KEY, eid INT, afterDepId INT, afterJobId INT, removeDate DATE, reason VARCHAR(255), remark VARCHAR(255), FOREIGN KEY(eid) REFERENCES employee(id))");
         jdbc.execute("CREATE TABLE oplog(id INT AUTO_INCREMENT PRIMARY KEY, addDate DATE, operate VARCHAR(255), hrid INT, FOREIGN KEY(hrid) REFERENCES hr(id))");
+        jdbc.execute("CREATE TABLE employeeec(id INT AUTO_INCREMENT PRIMARY KEY, eid INT, ecDate DATE, ecReason VARCHAR(255), ecPoint INT, ecType INT, remark VARCHAR(255), FOREIGN KEY(eid) REFERENCES employee(id))");
         // Execute the exact new migration, rather than a hand-maintained final schema.
         try (Connection connection = source.getConnection()) {
             ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/migration/V3__employee_transfer_audit.sql"));
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/migration/V4__employee_rewards_and_rules.sql"));
         }
         jdbc.update("INSERT INTO department VALUES(1,'研发部',TRUE,0),(2,'产品部',TRUE,0),(3,'支持部',TRUE,0),(4,'已停用',FALSE,0)");
         jdbc.update("INSERT INTO position VALUES(1,'工程师',TRUE),(2,'产品经理',TRUE),(3,'已停用',FALSE)");

@@ -4,7 +4,7 @@
             <el-tab-pane label="部门管理" name="depmana"><DepMana></DepMana></el-tab-pane>
             <el-tab-pane label="职位管理" name="posmana"><PosMana></PosMana></el-tab-pane>
             <el-tab-pane label="职称管理" name="joblevelmana"><JobLevelMana></JobLevelMana></el-tab-pane>
-            <el-tab-pane label="奖惩规则（待上线）" name="ecmana" disabled />
+            <el-tab-pane label="奖惩规则" name="ecmana" lazy><EcMana /></el-tab-pane>
             <el-tab-pane label="权限组" name="permissmana"><PermissMana></PermissMana></el-tab-pane>
         </el-tabs>
     </div>
@@ -15,6 +15,7 @@
     import PosMana from '../../components/sys/basic/PosMana.vue'
     import JobLevelMana from '../../components/sys/basic/JobLevelMana.vue'
     import PermissMana from '../../components/sys/basic/PermissMana.vue'
+    import EcMana from '../../components/sys/basic/EcMana.vue'
     export default {
         name: "SysBasic",
         data(){
@@ -23,6 +24,7 @@
             }
         },
         components:{
+            EcMana,
             DepMana,
             PosMana,
             JobLevelMana,

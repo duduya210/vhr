@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.javaboy.vhr.mapper.EcMapper">
+    <select id="lockRule" resultType="org.javaboy.vhr.model.EcRule">SELECT * FROM ec_rule WHERE id=#{id} FOR UPDATE</select>
+    <select id="lockRecord" resultType="org.javaboy.vhr.model.EcRecord">SELECT * FROM employeeec WHERE id=#{id} FOR UPDATE</select>
+    <select id="receipt" resultType="org.javaboy.vhr.model.EcAudit">SELECT * FROM oplog WHERE requestKey=#{requestKey} FOR UPDATE</select>
+    <insert id="insertRule" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ec_rule(name,type,amount,description,enabled,version,creatorId,requestId,createdAt,updatedAt)
+        VALUES(#{name},#{type},#{amount},#{description},#{enabled},0,#{creatorId},#{requestId},#{createdAt},#{updatedAt})
+    </insert>
+    <update id="updateRule">
+        UPDATE ec_rule SET name=#{name},type=#{type},amount=#{amount},description=#{description},
+            enabled=#{enabled},version=version+1,updatedAt=#{updatedAt} WHERE id=#{id} AND version=#{version}
+    </update>
+    <insert id="insertRecord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO employeeec(eid,ecDate,ecReason,ecType,remark,ruleId,ruleVersion,ruleName,ruleDescription,
+            amount,defaultAmount,employeeName,workId,departmentName,status,operatorId,operatorName,createdAt)
+        VALUES(#{eid},#{ecDate},#{ecReason},#{ecType},#{remark},#{ruleId},#{ruleVersion},#{ruleName},#{ruleDescription},
+            #{amount},#{defaultAmount},#{employeeName},#{workId},#{departmentName},'ACTIVE',#{operatorId},#{operatorName},#{createdAt})
+    </insert>
+    <update id="cancelRecord">
+        UPDATE employeeec SET status='CANCELLED',cancelledBy=#{cancelledBy},cancelledByName=#{cancelledByName},
+            cancelledAt=#{cancelledAt},cancelReason=#{cancelReason} WHERE id=#{id} AND status='ACTIVE'
+    </update>
+    <insert id="insertAudit" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO oplog(addDate,operate,hrid,operatorName,createdAt,details,requestKey,requestHash,ecAction,ecResultId)
+        VALUES(#{createdAt},#{operate},#{hrid},#{operatorName},#{createdAt},#{details},#{requestKey},#{requestHash},#{ecAction},#{ecResultId})
+    </insert>
+    <sql id="ruleWhere">
+        <where>
+            <if test="q.keyword != ''">AND name LIKE CONCAT('%',#{q.keyword},'%')</if>
+            <if test="q.type != null">AND type=#{q.type}</if>
+            <if test="q.enabled != null">AND enabled=#{q.enabled}</if>
+        </where>
+    </sql>
+    <select id="rules" resultType="org.javaboy.vhr.model.EcRule">
+        SELECT * FROM ec_rule <include refid="ruleWhere"/> ORDER BY id DESC LIMIT #{q.size} OFFSET #{q.offset}
+    </select>
+    <select id="ruleCount" resultType="long">SELECT COUNT(*) FROM ec_rule <include refid="ruleWhere"/></select>
+    <sql id="recordWhere">
+        <where>
+            <if test="q.keyword != ''">AND (COALESCE(r.employeeName,e.name) LIKE CONCAT('%',#{q.keyword},'%') OR COALESCE(r.workId,e.workID) LIKE CONCAT('%',#{q.keyword},'%'))</if>
+            <if test="q.type != null">AND r.ecType=#{q.type}</if>
+            <if test="q.status != null and q.status != ''">AND r.status=#{q.status}</if>
+            <if test="q.startDate != null">AND r.ecDate &gt;= #{q.startDate}</if>
+            <if test="q.endDate != null">AND r.ecDate &lt;= #{q.endDate}</if>
+        </where>
+    </sql>
+    <select id="records" resultType="org.javaboy.vhr.model.EcRecord">
+        SELECT r.id,r.eid,r.ecDate,r.ecReason,r.ecPoint,r.ecType,r.remark,r.ruleId,r.ruleVersion,r.ruleName,r.ruleDescription,
+            r.amount,r.defaultAmount,COALESCE(r.employeeName,e.name) AS employeeName,COALESCE(r.workId,e.workID) AS workId,
+            r.departmentName,r.status,r.operatorId,r.operatorName,r.createdAt,r.cancelledBy,r.cancelledByName,r.cancelledAt,r.cancelReason
+        FROM employeeec r LEFT JOIN employee e ON e.id=r.eid <include refid="recordWhere"/>
+        ORDER BY r.ecDate DESC,r.id DESC LIMIT #{q.size} OFFSET #{q.offset}
+    </select>
+    <select id="recordCount" resultType="long">SELECT COUNT(*) FROM employeeec r LEFT JOIN employee e ON e.id=r.eid <include refid="recordWhere"/></select>
+</mapper>
+

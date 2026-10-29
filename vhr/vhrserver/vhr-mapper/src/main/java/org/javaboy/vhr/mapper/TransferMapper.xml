@@ -86,7 +86,7 @@
     </sql>
     <select id="logs" resultType="org.javaboy.vhr.model.TransferOperationLog">
         SELECT l.id, l.transferId, l.hrid AS operatorId, COALESCE(l.operatorName, h.name) AS operatorName,
-               COALESCE(l.createdAt, l.addDate) AS createdAt, l.operate, t.employeeName, t.workId,
+               COALESCE(l.createdAt, l.addDate) AS createdAt, l.operate, l.details, t.employeeName, t.workId,
                t.beforeDepName, t.beforeJobName, t.afterDepName, t.afterJobName, t.reason, t.remark
         <include refid="logFrom"/><include refid="logWhere"/>
         ORDER BY COALESCE(l.createdAt, l.addDate) DESC, l.id DESC LIMIT #{q.size} OFFSET #{q.offset}
