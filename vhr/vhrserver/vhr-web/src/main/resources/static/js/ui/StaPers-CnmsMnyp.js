@@ -1,0 +1,1 @@
+import{L as e,m as t,t as n}from"./_plugin-vue_export-helper-pzA3Yaco.js";var r={name:`StaPers`};function i(n,r,i,a,o,s){return e(),t(`div`,null,` 人事信息统计 `)}var a=n(r,[[`render`,i]]);export{a as default};

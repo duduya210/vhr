@@ -1,0 +1,1 @@
+import{L as e,m as t,t as n}from"./_plugin-vue_export-helper-pzA3Yaco.js";var r={name:`PerEmp`};function i(n,r,i,a,o,s){return e(),t(`div`,null,` 员工资料 `)}var a=n(r,[[`render`,i]]);export{a as default};

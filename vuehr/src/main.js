@@ -8,6 +8,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import {ElMessage, ElMessageBox, ElNotification} from 'element-plus'
 import 'element-plus/dist/index.css'
 import 'font-awesome/css/font-awesome.min.css'
+import './styles/theme.css'
 import {deleteRequest, getRequest, postKeyValueRequest, postRequest, putRequest} from "./utils/api";
 import {initMenu} from "./utils/menus";
 

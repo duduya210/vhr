@@ -47,6 +47,8 @@ export default defineConfig({
     },
     build: {
         outDir: 'dist',
+        // Reuse the backend's public /js/** resource route for the UI bundle.
+        assetsDir: 'js/ui',
         chunkSizeWarningLimit: 1500
     }
 })
