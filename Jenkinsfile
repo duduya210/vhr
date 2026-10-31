@@ -25,6 +25,21 @@ pipeline {
             }
         }
 
+        stage('前端打包') {
+            steps {
+                // Jenkins 的 Linux 构建节点须已安装 Node.js 和 npm；Vite 8 需要兼容的 Node.js 版本。
+                dir('vuehr') {
+                    sh 'node --version && npm --version'
+                    // 按 package-lock.json 安装依赖，再把 Vue 页面构建到 vuehr/dist。
+                    sh 'npm ci'
+                    sh 'npm run build'
+                }
+                // 将 dist 里面的内容打包，解压后 index.html 应位于目标目录根部。
+                sh 'mkdir -p release/frontend && tar -C vuehr/dist -czf release/frontend/frontend.tar.gz .'
+                archiveArtifacts artifacts: 'release/frontend/frontend.tar.gz', fingerprint: true
+            }
+        }
+
         stage('Maven 打包') {
             steps {
                 // 先确认构建节点实际使用的 JDK 和 Maven 版本。
@@ -85,6 +100,8 @@ cd "$directory"
 # test -f 检查失败时，set -e 会让部署立即停止。
 test -f Dockerfile
 test -f "$jar"
+if [ "$container" = mail ]; then
+    test -f jdk-21.tar.gz
 fi
 
 # 先构建新镜像，再处理旧容器；构建失败时旧容器继续运行。
@@ -153,7 +170,7 @@ for network in $networks; do
     fi
 done
 
-# 最多检查 30 次，每次间隔 2 秒；未就绪则输出最近 80 行容器日志并触发回滚。
+# 最多检查 5 次，每次间隔 2 秒；未就绪则输出最近 80 行容器日志并触发回滚。
 ready=0
 attempt=0
 while [ "$attempt" -lt 5 ]; do
@@ -196,6 +213,37 @@ trap - 0
                     cp release/deploy.sh release/vhrserver/deploy.sh
                     cp release/deploy.sh release/mailserver/deploy.sh
                 '''
+
+                // 这份脚本在虚拟机执行：只向 Nginx 的宿主机挂载目录发布前端静态文件。
+                writeFile file: 'release/frontend/deploy-frontend.sh', text: '''
+set -eu
+
+archive=/root/frontend/frontend.tar.gz
+webroot=/data/nginx/html
+
+test -f "$archive"
+test -d "$webroot"
+docker inspect nginx >/dev/null 2>&1 || { echo '找不到 nginx 容器' >&2; exit 1; }
+
+# 先确认宿主机目录确实挂载到了 Nginx 的网页目录，避免文件上传成功却访问不到。
+mount_source=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/usr/share/nginx/html"}}{{.Source}}{{end}}{{end}}' nginx)
+if [ "$mount_source" != "$webroot" ]; then
+    echo "Nginx 网页目录的宿主机挂载路径是 $mount_source，预期是 $webroot；请先检查 docker inspect nginx" >&2
+    exit 1
+fi
+
+# 先发布 JS、CSS、图片，再替换 index.html，避免页面引用尚未上传的新资源。
+# 保留旧的带哈希文件，让已打开网页的浏览器仍能加载原资源。
+tar -tzf "$archive" >/dev/null
+tar --exclude='./index.html' -xzf "$archive" -C "$webroot"
+temporary_index=$(mktemp "$webroot/.index.html.XXXXXX")
+trap 'rm -f "$temporary_index"' 0
+tar -xOzf "$archive" ./index.html > "$temporary_index"
+chmod 644 "$temporary_index"
+mv -f "$temporary_index" "$webroot/index.html"
+trap - 0
+echo '前端静态文件已发布到 /data/nginx/html'
+'''
             }
         }
 
@@ -205,7 +253,7 @@ trap - 0
                 // 上传到 /root/vhrserver，然后在虚拟机执行 deploy.sh vhr。
                 sshPublisher(failOnError: true, publishers: [
                     sshPublisherDesc(
-                        configName: 'centos-vm',
+                        configName: 'root',
                         transfers: [sshTransfer(
                             sourceFiles: 'release/vhrserver/*',
                             removePrefix: 'release/vhrserver',
@@ -224,7 +272,7 @@ trap - 0
                 // 上传到 /root/mailserver，然后在虚拟机执行 deploy.sh mail。
                 sshPublisher(failOnError: true, publishers: [
                     sshPublisherDesc(
-                        configName: 'centos-vm',
+                        configName: 'root',
                         transfers: [sshTransfer(
                             sourceFiles: 'release/mailserver/*',
                             removePrefix: 'release/mailserver',
@@ -237,11 +285,31 @@ trap - 0
                 ])
             }
         }
+
+        stage('部署前端') {
+            steps {
+                // Publish Over SSH 的远程基础目录同样应为 /root。
+                // 上传 tar 包和脚本到 /root/frontend，脚本再将 dist 内容发布到 /data/nginx/html。
+                sshPublisher(failOnError: true, publishers: [
+                    sshPublisherDesc(
+                        configName: 'root',
+                        transfers: [sshTransfer(
+                            sourceFiles: 'release/frontend/*',
+                            removePrefix: 'release/frontend',
+                            remoteDirectory: 'frontend',
+                            cleanRemote: false,
+                            execTimeout: 600000,
+                            execCommand: 'sh /root/frontend/deploy-frontend.sh'
+                        )]
+                    )
+                ])
+            }
+        }
     }
 
     post {
         success {
-            echo 'vhr-web 和 mailserver 容器已部署。'
+            echo 'vhr-web、mailserver 容器和前端静态文件已部署。'
         }
         failure {
             echo '流水线失败，请查看失败阶段的日志。'
