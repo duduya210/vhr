@@ -104,8 +104,6 @@ cd "$directory"
 # test -f 检查失败时，set -e 会让部署立即停止。
 test -f Dockerfile
 test -f "$jar"
-if [ "$container" = mail ]; then
-    test -f jdk-21.tar.gz
 fi
 
 # 先构建新镜像，再处理旧容器；构建失败时旧容器继续运行。
