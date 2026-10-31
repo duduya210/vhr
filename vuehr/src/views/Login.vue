@@ -26,7 +26,7 @@
         <section class="login-form-area">
             <div class="login-card">
                 <span class="form-eyebrow">欢迎回来</span>
-                <h2>登录你的工作空间</h2>
+                <h2>欢迎来到你的工作空间</h2>
                 <p class="form-description">使用你的账号，继续今天的工作。</p>
                 <el-form
                     ref="loginForm"
