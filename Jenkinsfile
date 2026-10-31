@@ -1,8 +1,8 @@
 pipeline {
-    // 以下 stage 由 Jenkins 的 Linux 构建节点依次执行；只有 deploy.sh 会通过 SSH 在虚拟机执行。
+    // 当前 Jenkins 构建节点运行在 Windows；deploy.sh 仍通过 SSH 在 Linux 虚拟机执行。
     agent any
 
-    // 名称须与 Jenkins > Tools 中配置的一致；构建节点须为 Linux。
+    // 名称须与 Jenkins > Tools 中配置的一致。
     tools {
         jdk 'jdk21'
         maven 'maven'
@@ -27,15 +27,18 @@ pipeline {
 
         stage('前端打包') {
             steps {
-                // Jenkins 的 Linux 构建节点须已安装 Node.js 和 npm；Vite 8 需要兼容的 Node.js 版本。
+                // Windows 构建节点须已安装 Node.js 和 npm；Vite 8 需要兼容的 Node.js 版本。
                 dir('vuehr') {
-                    sh 'node --version && npm --version'
+                    bat 'node --version && npm.cmd --version'
                     // 按 package-lock.json 安装依赖，再把 Vue 页面构建到 vuehr/dist。
-                    sh 'npm ci'
-                    sh 'npm run build'
+                    bat 'npm.cmd ci'
+                    bat 'npm.cmd run build'
                 }
                 // 将 dist 里面的内容打包，解压后 index.html 应位于目标目录根部。
-                sh 'mkdir -p release/frontend && tar -C vuehr/dist -czf release/frontend/frontend.tar.gz .'
+                bat '''
+                    if not exist "release\\frontend" mkdir "release\\frontend"
+                    tar.exe -C "vuehr\\dist" -czf "release\\frontend\\frontend.tar.gz" .
+                '''
                 archiveArtifacts artifacts: 'release/frontend/frontend.tar.gz', fingerprint: true
             }
         }
@@ -43,9 +46,9 @@ pipeline {
         stage('Maven 打包') {
             steps {
                 // 先确认构建节点实际使用的 JDK 和 Maven 版本。
-                sh 'java -version && mvn -version'
+                bat 'java -version && mvn.cmd -version'
                 // 从多模块父 POM 打包；此处跳过测试编译和执行。
-                sh 'mvn -B -ntp -f vhr/pom.xml -Dmaven.test.skip=true clean package'
+                bat 'mvn.cmd -B -ntp -f vhr/pom.xml -Dmaven.test.skip=true clean package'
             }
             post {
                 success {
@@ -58,11 +61,12 @@ pipeline {
 
         stage('准备上传文件') {
             steps {
-                // sh 在 Jenkins 构建节点执行：把 JAR 复制并重命名为 Dockerfile 中 COPY 使用的名字。
-                sh '''
-                    mkdir -p release/vhrserver release/mailserver
-                    cp vhr/vhrserver/vhr-web/target/vhr-web-0.0.1-SNAPSHOT.jar release/vhrserver/vhrserver.jar
-                    cp vhr/mailserver/target/mailserver-0.0.1-SNAPSHOT.jar release/mailserver/mailserver.jar
+                // bat 在 Windows 构建节点执行：把 JAR 复制并重命名为 Dockerfile 中 COPY 使用的名字。
+                bat '''
+                    if not exist "release\\vhrserver" mkdir "release\\vhrserver"
+                    if not exist "release\\mailserver" mkdir "release\\mailserver"
+                    copy /Y "vhr\\vhrserver\\vhr-web\\target\\vhr-web-0.0.1-SNAPSHOT.jar" "release\\vhrserver\\vhrserver.jar" >NUL || exit /b 1
+                    copy /Y "vhr\\mailserver\\target\\mailserver-0.0.1-SNAPSHOT.jar" "release\\mailserver\\mailserver.jar" >NUL || exit /b 1
                 '''
 
                 // writeFile 也在 Jenkins 构建节点执行，只写出文件，不执行脚本。
@@ -209,9 +213,9 @@ trap - 0
 '''
 
                 // 将同一份部署脚本分别放进两个上传目录，和各自的 JAR 一起上传。
-                sh '''
-                    cp release/deploy.sh release/vhrserver/deploy.sh
-                    cp release/deploy.sh release/mailserver/deploy.sh
+                bat '''
+                    copy /Y "release\\deploy.sh" "release\\vhrserver\\deploy.sh" >NUL || exit /b 1
+                    copy /Y "release\\deploy.sh" "release\\mailserver\\deploy.sh" >NUL || exit /b 1
                 '''
 
                 // 这份脚本在虚拟机执行：只向 Nginx 的宿主机挂载目录发布前端静态文件。
@@ -249,7 +253,7 @@ echo '前端静态文件已发布到 /data/nginx/html'
 
         stage('部署 vhr-web') {
             steps {
-                // Publish Over SSH 的 centos-vm 远程基础目录应配置为 /root。
+                // Publish Over SSH 中 configName 为 root 的远程基础目录应配置为 /root。
                 // 上传到 /root/vhrserver，然后在虚拟机执行 deploy.sh vhr。
                 sshPublisher(failOnError: true, publishers: [
                     sshPublisherDesc(
