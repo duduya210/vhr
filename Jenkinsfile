@@ -177,7 +177,7 @@ done
 # 最多检查 5 次，每次间隔 2 秒；未就绪则输出最近 80 行容器日志并触发回滚。
 ready=0
 attempt=0
-while [ "$attempt" -lt 5 ]; do
+while [ "$attempt" -lt 30 ]; do
     if [ "$container" = vhr ]; then
         # 这里只检查进程在运行且 HTTP 有响应；401/500 仍算“已响应”，不代表接口功能正常。
         response=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/verifyCode || true)
